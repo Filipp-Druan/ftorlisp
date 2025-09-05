@@ -284,3 +284,21 @@ test "Lexer skipWhitespace" {
     assert(res.coords.line == 1);
     assert(res.coords.char == 4);
 }
+
+fn tokenCmp(token: Token, tag: TokenTag, str: []const u8, line: usize, char: usize) bool {
+    return (token.tag == tag) and
+        std.mem.eql([]const u8, str, token.str) and
+        token.coords.line == line and
+        token.coords.char == char;
+}
+
+test "Lexer brackets" {
+    const pd = try PropsData.init(std.testing.allocator);
+    defer pd.deinit(std.testing.allocator);
+
+    var lexer = Lexer.initFromString("([])", "test.lisp", pd);
+    const res_1 = lexer.next();
+    const res_2 = lexer.next();
+    const res_3 = lexer.next();
+    const res_4 = lexer.next();
+}
