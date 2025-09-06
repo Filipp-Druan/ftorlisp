@@ -23,13 +23,22 @@ pub const Coords = struct {
 
 pub const TokenStart = struct {
     coords: Coords,
-    start_byte: usize,
+    start_byte: u32,
 };
 
 pub const Token = struct {
     tag: TokenTag,
     str: []const u8,
     coords: Coords,
+
+    pub fn print(token: Token) void {
+        std.debug.print("Token:\n tag:{s} str: {s}\n  line: {}\n  char: {}", .{
+            @tagName(token.tag),
+            token.str,
+            token.coords.line,
+            token.coords.char,
+        });
+    }
 };
 
 pub const TokenTag = enum {
@@ -72,6 +81,10 @@ pub const Lexer = struct {
             .tok => |token| return token,
             .fail => {},
         }
+        switch (self.readSymbol()) {
+            .tok => |token| return token,
+            .fail => {},
+        }
         switch (self.readOpenBracket()) {
             .tok => |token| return token,
             .fail => {},
@@ -100,7 +113,7 @@ pub const Lexer = struct {
         };
     }
 
-    fn pointForward(self: *Lexer, point: ?CodePoint) void {
+    fn stepForward(self: *Lexer, point: ?CodePoint) void {
         if (isNewLine(point)) {
             self.lineFeed();
         } else {
@@ -111,7 +124,7 @@ pub const Lexer = struct {
     fn skipWhitespace(self: *Lexer) void {
         var code = &self.code_iter;
         while (isWhitespace(code.peek(), self.pd)) {
-            self.pointForward(code.next());
+            self.stepForward(code.next());
         }
     }
 
@@ -140,14 +153,13 @@ pub const Lexer = struct {
 
     fn readByPredicate(self: *Lexer, pred: PointPredicate, tag: TokenTag) Res {
         var code = self.code_iter; // Пока не дописал эту функцию.
-        const start_coords = self.coords;
-        const start_byte = code.i;
+        const start = self.tokenStart();
 
         const point = code.next();
         if (pred(point, self.pd)) {
             self.code_iter = code;
-            self.pointForward(point);
-            return Res.success(tag, code, start_coords, start_byte);
+            self.stepForward(point);
+            return Res.success(tag, code, start);
         } else {
             return Res.fail;
         }
@@ -164,21 +176,41 @@ pub const Lexer = struct {
     fn readCloseBracket(self: *Lexer) Res {
         return self.readByPredicate(isCloseBracket, .CloseBracket);
     }
+
+    fn readSymbol(self: *Lexer) Res {
+        var code = self.code_iter;
+        const start = self.tokenStart();
+
+        const point = code.next();
+        if (isSymbolStartPoint(point, self.pd)) {
+            self.stepForward(point);
+        } else {
+            return Res.fail;
+        }
+
+        while (isSymbolBodyPoint(code.peek(), self.pd)) {
+            self.stepForward(code.next());
+        }
+
+        self.code_iter = code;
+
+        return Res.success(.Symbol, code, start);
+    }
 };
 
 const Res = union(enum) {
     tok: Token,
     fail,
 
-    pub fn success(tag: TokenTag, code: CodeIter, coords: Coords, start: u32) Res {
+    pub fn success(tag: TokenTag, code: CodeIter, start: TokenStart) Res {
         return .{ .tok = .{
             .tag = tag,
-            .str = getSliceToNext(code, start),
-            .coords = coords,
+            .str = getSliceToNext(code, start.start_byte),
+            .coords = start.coords,
         } };
     }
 };
-
+// TODO: Нужно разобраться с типами старта. Что-то тут не так.
 fn getSlice(code: CodeIter, start: u32, end: u32) []const u8 {
     return code.bytes[start..end];
 }
@@ -287,18 +319,25 @@ test "Lexer skipWhitespace" {
 
 fn tokenCmp(token: Token, tag: TokenTag, str: []const u8, line: usize, char: usize) bool {
     return (token.tag == tag) and
-        std.mem.eql([]const u8, str, token.str) and
+        std.mem.eql(u8, str, token.str) and
         token.coords.line == line and
         token.coords.char == char;
 }
 
-test "Lexer brackets" {
+test "Lexer next" {
     const pd = try PropsData.init(std.testing.allocator);
     defer pd.deinit(std.testing.allocator);
 
-    var lexer = Lexer.initFromString("([])", "test.lisp", pd);
+    var lexer = Lexer.initFromString("([hello\n])", "test.lisp", pd);
     const res_1 = lexer.next();
     const res_2 = lexer.next();
     const res_3 = lexer.next();
     const res_4 = lexer.next();
+    const res_5 = lexer.next();
+
+    assert(tokenCmp(res_1, .OpenBracket, "(", 1, 1));
+    assert(tokenCmp(res_2, .OpenBracket, "[", 1, 2));
+    assert(tokenCmp(res_3, .Symbol, "hello", 1, 3));
+    assert(tokenCmp(res_4, .CloseBracket, "]", 2, 1));
+    assert(tokenCmp(res_5, .CloseBracket, ")", 2, 2));
 }
