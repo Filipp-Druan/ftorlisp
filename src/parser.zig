@@ -6,37 +6,37 @@ const root = @import("root.zig");
 
 const Lexer = root.lexer.Lexer;
 const pt = root.parsing_tree;
-const AstNode = pt.AstNode;
+const Node = pt.Node;
 
 pub const Parser = struct {
     lexer: Lexer,
     allocator: std.mem.Allocator,
     sym_man: *root.symbols.SymMan,
 
-    pub fn next(self: *Parser) *AstNode {
+    pub fn next(self: *Parser) *Node {
         switch (try self.readSymbol()) {
             .obj => |obj| return obj,
             .fail => {},
         }
     }
 
-    pub fn readSymbol(self: *Parser) !*AstNode {
+    pub fn readSymbol(self: *Parser) !*Node {
         var lexer = self.lexer;
 
         const token = lexer.next();
         if (token.tag == .Symbol) {
-            var sym = self.sym_man.intern(token.str);
+            const sym = self.sym_man.intern(token.str);
             self.lexer = lexer;
-            return 
+            return Node.newSymbol(sym, token.position, self.allocator);
         } else {}
     }
 };
 
 const Res = union(enum) {
-    node: *AstNode,
+    node: *Node,
     fail,
 
-    pub fn success(node: *AstNode) Res {
+    pub fn success(node: *Node) Res {
         return .{ .node = node };
     }
 };
