@@ -8,35 +8,35 @@ const assert = std.debug.assert;
 const CodePoint = code_point.CodePoint;
 const CodeIter = code_point.Iterator;
 
-pub const Coords = struct {
+pub const Position = struct {
     file: []const u8,
     line: usize,
     char: usize,
 
-    pub fn init(file: []const u8) Coords {
+    pub fn init(file: []const u8) Position {
         return .{ .file = file, .line = 1, .char = 1 };
     }
-    pub fn make(line: usize, char: usize) Coords {
+    pub fn make(line: usize, char: usize) Position {
         return .{ .line = line, .char = char };
     }
 };
 
 pub const TokenStart = struct {
-    coords: Coords,
+    position: Position,
     start_byte: u32,
 };
 
 pub const Token = struct {
     tag: TokenTag,
     str: []const u8,
-    coords: Coords,
+    position: Position,
 
     pub fn print(token: Token) void {
         std.debug.print("Token:\n tag:{s} str: {s}\n  line: {}\n  char: {}", .{
             @tagName(token.tag),
             token.str,
-            token.coords.line,
-            token.coords.char,
+            token.position.line,
+            token.position.char,
         });
     }
 };
@@ -56,13 +56,13 @@ pub const TokenTag = enum {
 pub const Lexer = struct {
     code_iter: CodeIter,
     pd: PropsData,
-    coords: Coords,
+    position: Position,
 
     pub fn init(code_iter: CodeIter, file: []const u8, pd: PropsData) Lexer {
         return Lexer{
             .code_iter = code_iter,
             .pd = pd,
-            .coords = Coords.init(file),
+            .position = Position.init(file),
         };
     }
 
@@ -102,13 +102,13 @@ pub const Lexer = struct {
     }
 
     fn lineFeed(self: *Lexer) void {
-        self.coords.line += 1;
-        self.coords.char = 1;
+        self.position.line += 1;
+        self.position.char = 1;
     }
 
     fn tokenStart(self: *Lexer) TokenStart {
         return .{
-            .coords = self.coords,
+            .position = self.position,
             .start_byte = self.code_iter.i,
         };
     }
@@ -117,7 +117,7 @@ pub const Lexer = struct {
         if (isNewLine(point)) {
             self.lineFeed();
         } else {
-            self.coords.char += 1;
+            self.position.char += 1;
         }
     }
 
@@ -136,7 +136,7 @@ pub const Lexer = struct {
             return .{ .tok = Token{
                 .tag = .Eof,
                 .str = "",
-                .coords = self.coords,
+                .position = self.position,
             } };
         }
     }
@@ -145,7 +145,7 @@ pub const Lexer = struct {
         return Token{
             .tag = .Error,
             .str = "",
-            .coords = self.coords,
+            .position = self.position,
         };
     }
 
@@ -206,7 +206,7 @@ const Res = union(enum) {
         return .{ .tok = .{
             .tag = tag,
             .str = getSliceToNext(code, start.start_byte),
-            .coords = start.coords,
+            .position = start.position,
         } };
     }
 };
@@ -313,15 +313,15 @@ test "Lexer skipWhitespace" {
     var lexer = Lexer.initFromString("   ", "test.lisp", pd);
     const res = lexer.next();
 
-    assert(res.coords.line == 1);
-    assert(res.coords.char == 4);
+    assert(res.position.line == 1);
+    assert(res.position.char == 4);
 }
 
 fn tokenCmp(token: Token, tag: TokenTag, str: []const u8, line: usize, char: usize) bool {
     return (token.tag == tag) and
         std.mem.eql(u8, str, token.str) and
-        token.coords.line == line and
-        token.coords.char == char;
+        token.position.line == line and
+        token.position.char == char;
 }
 
 test "Lexer next" {
