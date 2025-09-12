@@ -4,6 +4,8 @@ const code_point = @import("code_point");
 const PropsData = @import("PropsData");
 const root = @import("root.zig");
 
+const assert = std.debug.assert;
+
 const Lexer = root.lexer.Lexer;
 const pt = root.parsing_tree;
 const List = root.parsing_tree.List;
@@ -26,6 +28,10 @@ pub const Parser = struct {
     }
 
     pub fn next(self: *Parser) anyerror!*Node {
+        switch (try self.readInteger()) {
+            .node => |node| return node,
+            .fail => {},
+        }
         switch (try self.readSymbol()) {
             .node => |node| return node,
             .fail => {},
@@ -45,6 +51,20 @@ pub const Parser = struct {
             const sym = try self.sym_man.intern(token.str);
             self.lexer = lexer;
             const node = try Node.newSymbol(sym, token.position, self.alloc);
+            return Res.success(node);
+        } else {
+            return Res.fail;
+        }
+    }
+
+    fn readInteger(self: *Parser) !Res {
+        var lexer = self.lexer;
+
+        const token = lexer.next();
+        if (token.tag == .Number) {
+            const num = parseInteger(token.str);
+            self.lexer = lexer;
+            const node = try Node.newInteger(num, token.position, self.alloc);
             return Res.success(node);
         } else {
             return Res.fail;
@@ -97,6 +117,25 @@ const Res = union(enum) {
     }
 };
 
+/// Эта функция из строки получает записанное в ней число.
+/// Она опирается на контракты, которая обеспечивает лексер, что строка не пустая, и не содержит
+/// никаких других символов, кроме минуса и цифр;
+fn parseInteger(str: []const u8) i64 {
+    const work_str = if (str[0] == '-') str[1..] else str;
+    const is_neg = str[0] == '-';
+
+    var res: i64 = 0;
+    for (work_str) |digit| {
+        res = res * 10 + digitToNum(digit);
+    }
+
+    return if (is_neg) -res else res;
+}
+
+fn digitToNum(digit: u8) u8 {
+    return digit - 48;
+}
+
 test "Parser" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     const alloc = arena.allocator();
@@ -106,7 +145,7 @@ test "Parser" {
     const pd = try PropsData.init(std.testing.allocator);
     defer pd.deinit(std.testing.allocator);
 
-    var parser = Parser.initFromString(alloc, "(first second third)", "test", &sym_man, pd);
+    var parser = Parser.initFromString(alloc, "(first second third) -25", "test", &sym_man, pd);
 
     const list = try parser.next();
     std.debug.assert(list.val == .list);
@@ -115,4 +154,14 @@ test "Parser" {
     std.debug.assert(list.val.list.items[0].val.symbol == try sym_man.intern("first"));
     std.debug.assert(list.val.list.items[1].val.symbol == try sym_man.intern("second"));
     std.debug.assert(list.val.list.items[2].val.symbol == try sym_man.intern("third"));
+
+    const num = try parser.next();
+
+    assert(num.val == .integer);
+    assert(num.val.integer == -25);
+}
+
+test "parseInteger" {
+    assert(parseInteger("123") == 123);
+    assert(parseInteger("-123") == -123);
 }
