@@ -74,10 +74,19 @@ pub const Lexer = struct {
         return self.readNext();
     }
 
+    pub fn peek(self: *Lexer) Token {
+        var lexer = self.*;
+        return Lexer.readNext(&lexer);
+    }
+
     fn readNext(self: *Lexer) Token {
         self.skipWhitespace();
 
         switch (self.readEof()) {
+            .tok => |token| return token,
+            .fail => {},
+        }
+        switch (self.readInteger()) {
             .tok => |token| return token,
             .fail => {},
         }
@@ -196,6 +205,32 @@ pub const Lexer = struct {
 
         return Res.success(.Symbol, code, start);
     }
+    fn readInteger(self: *Lexer) Res {
+        var code = self.code_iter;
+        const start = self.tokenStart();
+
+        const point = code.next();
+        if (cmp(point, '-')) {
+            if (isDecimal(code.peek(), self.pd)) {
+                self.stepForward(point);
+                self.stepForward(code.next());
+            } else {
+                return Res.fail;
+            }
+        } else if (isDecimal(point, self.pd)) {
+            self.stepForward(point);
+        } else {
+            return Res.fail;
+        }
+
+        while (isDecimal(code.peek(), self.pd)) {
+            self.stepForward(code.next());
+        }
+
+        self.code_iter = code;
+
+        return Res.success(.Number, code, start);
+    }
 };
 
 const Res = union(enum) {
@@ -230,6 +265,12 @@ fn isNewLine(cp: ?CodePoint) bool {
 fn isWhitespace(cp: ?CodePoint, pd: PropsData) bool {
     if (cp) |point| {
         return pd.isWhitespace(point.code);
+    } else return false;
+}
+
+fn isDecimal(cp: ?CodePoint, pd: PropsData) bool {
+    if (cp) |point| {
+        return pd.isDecimal(point.code);
     } else return false;
 }
 
@@ -328,16 +369,20 @@ test "Lexer next" {
     const pd = try PropsData.init(std.testing.allocator);
     defer pd.deinit(std.testing.allocator);
 
-    var lexer = Lexer.initFromString("([hello\n])", "test.lisp", pd);
+    var lexer = Lexer.initFromString("([- -5\n -hello])", "test.lisp", pd);
     const res_1 = lexer.next();
     const res_2 = lexer.next();
     const res_3 = lexer.next();
     const res_4 = lexer.next();
     const res_5 = lexer.next();
+    const res_6 = lexer.next();
+    const res_7 = lexer.next();
 
     assert(tokenCmp(res_1, .OpenBracket, "(", 1, 1));
     assert(tokenCmp(res_2, .OpenBracket, "[", 1, 2));
-    assert(tokenCmp(res_3, .Symbol, "hello", 1, 3));
-    assert(tokenCmp(res_4, .CloseBracket, "]", 2, 1));
-    assert(tokenCmp(res_5, .CloseBracket, ")", 2, 2));
+    assert(tokenCmp(res_3, .Symbol, "-", 1, 3));
+    assert(tokenCmp(res_4, .Number, "-5", 1, 5));
+    assert(tokenCmp(res_5, .Symbol, "-hello", 2, 2));
+    assert(tokenCmp(res_6, .CloseBracket, "]", 2, 8));
+    assert(tokenCmp(res_7, .CloseBracket, ")", 2, 9));
 }
