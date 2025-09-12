@@ -8,5 +8,5 @@ pub fn main() !void {}
 
 test "main test" {
     std.testing.refAllDecls(root.lexer);
-    // std.testing.refAllDecls(root.parser); // Пока парсер не написан
+    std.testing.refAllDecls(root.parser);
 }

@@ -18,6 +18,12 @@ pub const Node = struct {
         node.* = Node{ .position = pos, .val = .{ .symbol = sym } };
         return node;
     }
+
+    pub fn newList(list: List, pos: Position, alloc: std.mem.Allocator) !*Node {
+        const node = try alloc.create(Node);
+        node.* = Node{ .position = pos, .val = .{ .list = list } };
+        return node;
+    }
 };
 
 pub const List = std.ArrayList(*Node);
