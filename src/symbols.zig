@@ -28,11 +28,11 @@ pub const SymMan = struct {
         };
     }
 
-    pub fn deinit(self: SymMan) void {
+    pub fn deinit(self: *SymMan) void {
         self.map.deinit();
     }
 
-    pub fn intern(self: SymMan, name: []const u8) !*Symbol {
+    pub fn intern(self: *SymMan, name: []const u8) !*Symbol {
         var map = &self.map;
 
         const sym = map.get(name);
@@ -40,7 +40,7 @@ pub const SymMan = struct {
             return sym_ptr;
         } else {
             const new_sym = try Symbol.new(self.alloc, name);
-            map.put(name, new_sym);
+            try map.put(name, new_sym);
             return new_sym;
         }
     }
