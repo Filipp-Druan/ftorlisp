@@ -17,17 +17,28 @@ pub const Symbol = struct {
 pub const SymMan = struct {
     map: Map,
     alloc: std.mem.Allocator,
+    spec: struct {
+        let: *Symbol,
+        define: *Symbol,
+    },
 
     const Map = std.StringHashMap(*Symbol);
 
-    pub fn init(alloc: std.mem.Allocator) SymMan {
+    pub fn init(alloc: std.mem.Allocator) !SymMan {
         const map = Map.init(alloc);
-        return .{
-            .map = map,
-            .alloc = alloc,
-        };
+        var sym_man: SymMan = undefined;
+
+        sym_man.alloc = alloc;
+        sym_man.map = map;
+        try sym_man.initSpec();
+
+        return sym_man;
     }
 
+    pub fn initSpec(self: *SymMan) !void {
+        self.spec.let = try self.intern("let");
+        self.spec.define = try self.intern("define");
+    }
     pub fn deinit(self: *SymMan) void {
         self.map.deinit();
     }

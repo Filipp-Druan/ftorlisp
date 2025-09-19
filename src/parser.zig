@@ -139,7 +139,7 @@ fn digitToNum(digit: u8) u8 {
 test "Parser" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     const alloc = arena.allocator();
-    var sym_man = root.symbols.SymMan.init(alloc);
+    var sym_man = try root.symbols.SymMan.init(alloc);
     defer arena.deinit();
 
     const pd = try PropsData.init(std.testing.allocator);
