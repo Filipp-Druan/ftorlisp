@@ -9,4 +9,5 @@ pub fn main() !void {}
 test "main test" {
     std.testing.refAllDecls(root.lexer);
     std.testing.refAllDecls(root.parser);
+    std.testing.refAllDecls(root.ast);
 }
