@@ -19,7 +19,7 @@ pub const SymMan = struct {
     alloc: std.mem.Allocator,
     spec: struct {
         let: *Symbol,
-        define: *Symbol,
+        begin: *Symbol,
     },
 
     const Map = std.StringHashMap(*Symbol);
@@ -37,7 +37,7 @@ pub const SymMan = struct {
 
     pub fn initSpec(self: *SymMan) !void {
         self.spec.let = try self.intern("let");
-        self.spec.define = try self.intern("define");
+        self.spec.begin = try self.intern("begin");
     }
     pub fn deinit(self: *SymMan) void {
         self.map.deinit();
