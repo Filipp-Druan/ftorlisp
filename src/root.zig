@@ -5,3 +5,4 @@ pub const lexer = @import("lexer.zig");
 pub const parsing_tree = @import("parsing_tree.zig");
 pub const symbols = @import("symbols.zig");
 pub const parser = @import("parser.zig");
+pub const ast = @import("ast.zig");
