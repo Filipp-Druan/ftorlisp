@@ -1,3 +1,3 @@
-(define (main) Int64
+(begin
   (let num 64)
   (print num))
