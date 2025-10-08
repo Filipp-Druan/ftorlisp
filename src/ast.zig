@@ -20,10 +20,11 @@ pub const AST = union(enum) {
     let: Let,
     name: *Symbol,
     integer: i64,
+    call: Call,
     err: ASTError,
 };
 
-pub const FormName = enum { Let, Expr, Begin };
+pub const FormName = enum { Let, Expr, Begin, Call };
 
 pub const ErrorTag = enum { BadLen, BadName, KeyInExpr, SimpleValInBlock };
 
@@ -51,6 +52,11 @@ pub const Let = struct {
     val: *AST,
 };
 
+pub const Call = struct {
+    fun: *Symbol,
+    args: ASTList,
+};
+
 pub fn pass(node: *ParsingNode, alloc: std.mem.Allocator, sym_man: *SymMan) !*AST {
     switch (node.val) {
         .symbol => |sym| {
@@ -76,8 +82,8 @@ pub fn listPass(node: *ParsingNode, alloc: std.mem.Allocator, sym_man: *SymMan) 
         const sym = head.val.symbol;
         if (sym == sym_man.spec.let) return letPass(node, alloc, sym_man);
         if (sym == sym_man.spec.begin) return beginPass(node, alloc, sym_man);
-        assert(false); // Мы не выбрали допустимый оператор
-        unreachable;
+
+        return callPass(node, alloc, sym_man);
     } else {
         assert(false); // У нас пока не может на месте оператора быть список.
         unreachable;
@@ -127,10 +133,41 @@ fn beginPass(node: *ParsingNode, alloc: std.mem.Allocator, sym_man: *SymMan) any
     return ast;
 }
 
+fn callPass(node: *ParsingNode, alloc: std.mem.Allocator, sym_man: *SymMan) anyerror!*AST {
+    assert(node.val == .list);
+    const items = node.val.list.items;
+
+    const operator = items[0];
+
+    switch (operator.val) {
+        .symbol => |sym| {
+            if (isKey(sym, sym_man)) {
+                return ASTError.new(alloc, .Call, .BadName, operator.position);
+            }
+        },
+        else => return ASTError.new(alloc, .Call, .BadName, operator.position),
+    }
+
+    var arg_exprs = ASTList.init(alloc);
+
+    for (items[1..]) |current_node| {
+        const expr = try exprPass(current_node, alloc, sym_man);
+        try arg_exprs.append(expr);
+    }
+
+    const ast = try alloc.create(AST);
+    ast.* = .{ .call = .{ .fun = operator.val.symbol, .args = arg_exprs } };
+    return ast;
+}
+
+fn isKey(sym: *Symbol, sym_man: *SymMan) bool {
+    return sym == sym_man.spec.begin or
+        sym == sym_man.spec.let;
+}
+
 // В языке есть выражения, которые возвращают значения. В них не может быть ключвых слов, только операторы и
 // вызовы функций, переменные и литералы.
 fn exprPass(node: *ParsingNode, alloc: std.mem.Allocator, sym_man: *SymMan) !*AST {
-    _ = sym_man;
     switch (node.val) {
         .symbol => |sym| {
             const ast = try alloc.create(AST);
@@ -143,8 +180,7 @@ fn exprPass(node: *ParsingNode, alloc: std.mem.Allocator, sym_man: *SymMan) !*AS
             return ast;
         },
         .list => |_| {
-            assert(false); // Сложные выражения пока не реализованы.
-            unreachable;
+            return callPass(node, alloc, sym_man);
         },
     }
 }
@@ -158,15 +194,23 @@ test "Pass" {
     const pd = try PropsData.init(std.testing.allocator);
     defer pd.deinit(std.testing.allocator);
 
-    var parser = root.parser.Parser.initFromString(alloc, "(begin (let num 25))", "test", &sym_man, pd);
+    var parser = root.parser.Parser.initFromString(alloc, "(begin (let num 25) (print num))", "test", &sym_man, pd);
     const node = try parser.next();
     assert(node.val == .list);
     const ast = try pass(node, alloc, &sym_man);
 
     assert(ast.* == .begin);
-    assert(ast.begin.body.items.len == 1);
+    assert(ast.begin.body.items.len == 2);
+
     const let = ast.begin.body.items[0];
+
     assert(let.* == .let);
     assert(let.*.let.name == try sym_man.intern("num"));
     assert(let.*.let.val.integer == 25);
+
+    const call = ast.begin.body.items[1];
+
+    assert(call.* == .call);
+    assert(call.call.fun == try sym_man.intern("print"));
+    assert(call.call.args.items[0].name == try sym_man.intern("num"));
 }
