@@ -80,7 +80,7 @@ pub const Lexer = struct {
     }
 
     fn readNext(self: *Lexer) Token {
-        self.skipWhitespace();
+        while (self.skipComment() or self.skipWhitespace()) {}
 
         switch (self.readEof()) {
             .tok => |token| return token,
@@ -130,11 +130,34 @@ pub const Lexer = struct {
         }
     }
 
-    fn skipWhitespace(self: *Lexer) void {
+    fn skipWhitespace(self: *Lexer) bool {
         var code = &self.code_iter;
+        var is_used = false;
         while (isWhitespace(code.peek(), self.pd)) {
+            is_used = true;
             self.stepForward(code.next());
         }
+
+        return is_used;
+    }
+
+    fn skipComment(self: *Lexer) bool {
+        var code = &self.code_iter;
+
+        if (isSemicolon(code.peek())) {
+            self.stepForward(code.next());
+            var point = code.peek();
+
+            while ((point != null) and (!isNewLine(point))) {
+                self.stepForward(code.next());
+                point = code.peek();
+            }
+
+            self.stepForward(code.next());
+
+            return true;
+        }
+        return false;
     }
 
     fn readEof(self: *Lexer) Res {
@@ -262,6 +285,10 @@ fn isNewLine(cp: ?CodePoint) bool {
     return cmp(cp, '\n');
 }
 
+fn isSemicolon(cp: ?CodePoint) bool {
+    return cmp(cp, ';');
+}
+
 fn isWhitespace(cp: ?CodePoint, pd: PropsData) bool {
     if (cp) |point| {
         return pd.isWhitespace(point.code);
@@ -385,4 +412,13 @@ test "Lexer next" {
     assert(tokenCmp(res_5, .Symbol, "-hello", 2, 2));
     assert(tokenCmp(res_6, .CloseBracket, "]", 2, 8));
     assert(tokenCmp(res_7, .CloseBracket, ")", 2, 9));
+}
+
+test "Lexer comment" {
+    const pd = try PropsData.init(std.testing.allocator);
+    defer pd.deinit(std.testing.allocator);
+
+    var lexer = Lexer.initFromString("hello ;comment\n world", "test.lisp", pd);
+    assert(tokenCmp(lexer.next(), .Symbol, "hello", 1, 1));
+    assert(tokenCmp(lexer.next(), .Symbol, "world", 2, 2));
 }
