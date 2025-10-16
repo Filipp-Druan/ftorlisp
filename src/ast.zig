@@ -16,6 +16,7 @@ const Position = root.lexer.Position;
 // Определения функций. Присваивания. Вызовы функций.
 
 pub const AST = union(enum) {
+    module: Module,
     begin: Begin,
     let: Let,
     name: *Symbol,
@@ -44,6 +45,10 @@ pub const ASTList = std.ArrayList(*AST);
 
 // Это Бегин -- блок кода. В нём могут быть любые выражения и стейтменты.
 pub const Begin = struct {
+    body: ASTList,
+};
+
+pub const Module = struct {
     body: ASTList,
 };
 
