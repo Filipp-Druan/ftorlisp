@@ -184,7 +184,7 @@ pub const Lexer = struct {
     const PointPredicate = fn (?CodePoint, PropsData) bool;
 
     fn readByPredicate(self: *Lexer, pred: PointPredicate, tag: TokenTag) Res {
-        var code = self.code_iter; // Пока не дописал эту функцию.
+        var code = self.code_iter;
         const start = self.tokenStart();
 
         const point = code.next();
